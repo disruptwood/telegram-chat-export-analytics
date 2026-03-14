@@ -15,6 +15,11 @@ from .reporting import (
     write_top_sender_rows_csv,
     write_top_sender_rows_json,
 )
+from .visualizations import (
+    build_daily_sender_series,
+    write_daily_sender_series_json,
+    write_heatmap_bubbles_html,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -69,6 +74,18 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=10,
         help="How many top senders to export for each period.",
+    )
+
+    heatmap_parser = subparsers.add_parser(
+        "heatmap-bubbles",
+        help="Generate a daily sender dataset and a self-contained HTML bubble visualization.",
+    )
+    heatmap_parser.add_argument("input_path", help="Path to a Telegram export directory or result.json file.")
+    heatmap_parser.add_argument("--output-dir", default="outputs", help="Directory for generated artifacts.")
+    heatmap_parser.add_argument(
+        "--include-non-user",
+        action="store_true",
+        help="Include channel/chat senders alongside human-like users.",
     )
 
     return parser
@@ -155,6 +172,19 @@ def run_participant_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_heatmap_bubbles(args: argparse.Namespace) -> int:
+    chat_export = load_chat_export(args.input_path)
+    output_dir = Path(args.output_dir)
+    series = build_daily_sender_series(
+        chat_export.messages,
+        include_non_human=args.include_non_user,
+    )
+    write_daily_sender_series_json(series, output_dir / "daily_all_senders.json")
+    write_heatmap_bubbles_html(output_dir / "heatmap_bubbles.html")
+    print(f"Heatmap bubble artifacts written to {output_dir}")
+    return 0
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -165,6 +195,8 @@ def main() -> int:
         return run_export(args)
     if args.command == "participant-report":
         return run_participant_report(args)
+    if args.command == "heatmap-bubbles":
+        return run_heatmap_bubbles(args)
 
     parser.error(f"Unsupported command: {args.command}")
     return 2

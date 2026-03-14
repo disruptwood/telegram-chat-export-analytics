@@ -154,6 +154,64 @@ class CliTests(unittest.TestCase):
             self.assertTrue((output_dir / "top_senders_month.json").exists())
             self.assertTrue((output_dir / "sender_directory.csv").exists())
 
+    def test_heatmap_bubbles_writes_visualization_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            input_path = root / "result.json"
+            output_dir = root / "outputs"
+
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "id": 1,
+                        "name": "Demo chat",
+                        "type": "personal_chat",
+                        "messages": [
+                            {
+                                "id": 1,
+                                "type": "message",
+                                "date": "2026-03-01T10:00:00",
+                                "from": "Ana",
+                                "from_id": "user1",
+                                "text": "Hello",
+                            },
+                            {
+                                "id": 2,
+                                "type": "message",
+                                "date": "2026-03-03T10:00:00",
+                                "from": "Ben",
+                                "from_id": "user2",
+                                "text": "World",
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(Path.cwd() / "src")
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "chat_analytics.cli",
+                    "heatmap-bubbles",
+                    str(input_path),
+                    "--output-dir",
+                    str(output_dir),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertTrue((output_dir / "daily_all_senders.json").exists())
+            self.assertTrue((output_dir / "heatmap_bubbles.html").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

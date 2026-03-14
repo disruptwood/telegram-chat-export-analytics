@@ -10,17 +10,20 @@ from .participants import (
     build_sender_directory,
     summarize_participants_by_period,
 )
+from .visualizations import DailySenderSeries, build_daily_sender_series
 
 __all__ = [
     "SUPPORTED_PERIODS",
     "ChatExport",
     "CountBucket",
     "DEFAULT_CORE_THRESHOLDS",
+    "DailySenderSeries",
     "ParticipantPeriodSummary",
     "SenderDirectoryEntry",
     "SenderProfile",
     "TelegramMessage",
     "TopSenderPeriodRow",
+    "build_daily_sender_series",
     "build_sender_directory",
     "count_messages_by_period",
     "load_chat_export",
