@@ -1,0 +1,12 @@
+__pycache__/
+.pytest_cache/
+.DS_Store
+.venv/
+*.pyc
+.claude/
+contacts/
+result.json
+outputs/
+ChatExport_*/
+*-ChatExport_*/
+exports/

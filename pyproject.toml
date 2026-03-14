@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "telegram-chat-export-analytics"
+version = "0.1.0"
+description = "Reusable analytics toolkit for Telegram chat exports."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Ilya Vladimirskiy" }
+]
+license = { text = "MIT" }
+keywords = ["telegram", "analytics", "chat-export", "telegram-export"]
+
+[project.scripts]
+telegram-chat-analytics = "chat_analytics.cli:main"
+chat-analytics = "chat_analytics.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
