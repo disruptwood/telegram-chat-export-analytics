@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .models import ChatExport, TelegramMessage
+from .models import ChatExport, Reaction, TelegramMessage
 
 
 def resolve_export_path(path: str | Path) -> Path:
@@ -41,8 +41,23 @@ def flatten_text(raw_text: str | list[object]) -> str:
     return "".join(parts)
 
 
+def parse_reactions(raw_reactions: list[dict[str, Any]]) -> tuple[Reaction, ...]:
+    result: list[Reaction] = []
+    for item in raw_reactions:
+        emoji = item.get("emoji", "")
+        actors = item.get("actors")
+        if actors is not None:
+            count = len(actors)
+        else:
+            count = int(item.get("count", 1))
+        if emoji and count > 0:
+            result.append(Reaction(emoji=emoji, count=count))
+    return tuple(result)
+
+
 def parse_message(raw_message: dict[str, Any]) -> TelegramMessage:
     raw_text = raw_message.get("text", "")
+    raw_reactions = raw_message.get("reactions", [])
     return TelegramMessage(
         id=int(raw_message["id"]),
         message_type=str(raw_message.get("type", "")),
@@ -60,6 +75,7 @@ def parse_message(raw_message: dict[str, Any]) -> TelegramMessage:
         actor_id=raw_message.get("actor_id"),
         title=raw_message.get("title"),
         new_title=raw_message.get("new_title"),
+        reactions=parse_reactions(raw_reactions) if raw_reactions else (),
     )
 
 
