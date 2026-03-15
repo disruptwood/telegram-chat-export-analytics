@@ -17,6 +17,7 @@ The project is designed around raw Telegram export folders and focuses on reprod
 - `src/chat_analytics/loader.py` - export directory and `result.json` loading.
 - `src/chat_analytics/aggregation.py` - message-count aggregations by time period.
 - `src/chat_analytics/participants.py` - participant and sender analytics.
+- `src/chat_analytics/reactions.py` - reaction analytics: per-sender rates, stability, top messages.
 - `src/chat_analytics/visualizations.py` - reusable visualization datasets and HTML exports.
 - `src/chat_analytics/reporting.py` - CSV/JSON/Markdown artifact writers.
 - `src/chat_analytics/cli.py` - command-line entrypoints.
@@ -91,6 +92,28 @@ This generates:
 - `outputs/heatmap_bubbles.html`
 
 Open `heatmap_bubbles.html` in a browser from the same folder as `daily_all_senders.json`. The animation shows how sender activity accumulates and decays over time, which makes bursts of sustained participation visible at a glance.
+
+Reaction analytics:
+
+```bash
+PYTHONPATH=src python3 -m chat_analytics.cli reaction-report /path/to/SomeChatExport_2026-03-14 --output-dir outputs --top-n-senders 30 --stability-period month
+```
+
+This generates:
+
+- `outputs/reaction_profiles.csv` - per-sender reaction rates (R/Msg, R/1kChars, median, share with reactions)
+- `outputs/reaction_by_day.csv` / `week` / `month` / `year` - per-sender per-period reaction breakdown
+- `outputs/reaction_stability_month.csv` - consistency analysis (mean, std, CV, consistency score)
+- `outputs/top_reacted_messages.csv` - messages ranked by total reactions with emoji breakdown
+- `outputs/reaction_report.md` - combined Markdown report
+
+Options:
+
+- `--top-n-senders N` filters to the top N senders by message count (default: 30)
+- `--min-percentile P` alternative: include only senders above this message count percentile (0.0-1.0)
+- `--stability-period` sets the time resolution for stability analysis (default: month)
+- `--min-periods N` minimum active periods required for stability (default: 3)
+- `--top-n-messages N` how many top reacted messages to export (default: 50)
 
 Documentation for participant activity files and metrics: `docs/USER_ACTIVITY_DATA.md`.
 

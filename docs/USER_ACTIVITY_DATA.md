@@ -173,6 +173,110 @@ Typical signs:
 - build top-10 sender animations directly from the JSON outputs
 - compare message spikes with active-sender spikes to distinguish wide participation from denser activity by a smaller core
 
+## Reaction Analytics
+
+### Reaction Profiles
+
+- `outputs/reaction_profiles.csv`
+
+Per-sender reaction statistics for the top N senders by message count.
+
+Fields:
+
+- `sender_id`: stable sender identifier
+- `display_name`: display name
+- `total_messages`: number of messages by this sender
+- `total_chars`: total characters written
+- `total_reactions`: sum of all reaction counts across all messages
+- `reactions_per_message`: `total_reactions / total_messages`
+- `reactions_per_1k_chars`: `total_reactions / (total_chars / 1000)`
+- `median_reactions`: median number of reactions per message
+- `messages_with_reactions`: number of messages that received at least one reaction
+- `messages_with_reactions_share`: share of messages that received at least one reaction
+
+### Reaction by Period
+
+- `outputs/reaction_by_day.csv`
+- `outputs/reaction_by_week.csv`
+- `outputs/reaction_by_month.csv`
+- `outputs/reaction_by_year.csv`
+
+Per-sender per-period breakdown, useful for tracking how reaction rates evolve over time.
+
+Fields:
+
+- `period`, `label`, `start_date`, `end_date`: time bucket
+- `sender_id`, `display_name`: sender info
+- `messages`: messages sent in the period
+- `total_reactions`: sum of reactions in the period
+- `reactions_per_message`: period-level R/Msg
+- `reactions_per_1k_chars`: period-level R/1kChars
+- `messages_with_reactions`: messages with at least one reaction
+
+### Reaction Stability
+
+- `outputs/reaction_stability_month.csv` (period depends on `--stability-period`)
+
+Measures how consistent a sender's reaction rate is across time periods.
+
+Fields:
+
+- `sender_id`, `display_name`: sender info
+- `periods_active`: number of periods in which the sender posted
+- `periods_with_reactions`: number of periods where messages received reactions
+- `mean_reactions_per_message`: average R/Msg across periods
+- `std_reactions_per_message`: standard deviation of R/Msg
+- `cv_reactions_per_message`: coefficient of variation (std / mean); lower is more stable
+- `min_reactions_per_message`, `max_reactions_per_message`: range
+- `median_reactions_per_message`: median R/Msg across periods
+- `consistency_score`: `mean / (1 + CV)`; rewards high reaction rates with low variance
+
+### Top Reacted Messages
+
+- `outputs/top_reacted_messages.csv`
+
+Messages ranked by total reaction count.
+
+Fields:
+
+- `message_id`: Telegram message ID
+- `date`: timestamp
+- `sender_id`, `display_name`: message author
+- `text_preview`: first 200 characters of the message
+- `total_reactions`: total reaction count
+- `reaction_breakdown`: space-separated `emoji:count` pairs
+
+### Sender Filtering
+
+Reaction analytics support several strategies for excluding low-activity senders:
+
+- **Top N** (`--top-n-senders`): only include the N senders with the most messages (default)
+- **Percentile** (`--min-percentile`): only include senders above a given percentile of the message count distribution
+- **Min messages** (programmatic API): `filter_senders_min_messages(messages, min_count)`
+
+The message count distribution statistics are shown in the Markdown report to help choose appropriate thresholds.
+
+### How to Read Reaction Metrics
+
+#### Consistently Popular Sender
+
+Typical signs:
+
+- high `reactions_per_message`
+- high `median_reactions` (not just a few viral messages)
+- high `messages_with_reactions_share`
+- low `cv_reactions_per_message` in stability analysis
+- high `consistency_score`
+
+#### Spike Poster (Occasional Viral Messages)
+
+Typical signs:
+
+- moderate or low `median_reactions` despite high `total_reactions`
+- high `cv_reactions_per_message`
+- low `consistency_score`
+- a few messages in `top_reacted_messages.csv` with very high counts
+
 ## Limitations
 
 - The datasets measure written messages, not read activity.

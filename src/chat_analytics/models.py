@@ -6,6 +6,12 @@ from pathlib import Path
 
 
 @dataclass(frozen=True, slots=True)
+class Reaction:
+    emoji: str
+    count: int
+
+
+@dataclass(frozen=True, slots=True)
 class TelegramMessage:
     id: int
     message_type: str
@@ -21,10 +27,15 @@ class TelegramMessage:
     actor_id: str | None
     title: str | None
     new_title: str | None
+    reactions: tuple[Reaction, ...] = ()
 
     @property
     def is_user_message(self) -> bool:
         return self.message_type == "message"
+
+    @property
+    def total_reactions(self) -> int:
+        return sum(r.count for r in self.reactions)
 
 
 @dataclass(frozen=True, slots=True)

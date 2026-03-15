@@ -14,6 +14,20 @@ from .participants import (
     build_sender_directory,
     summarize_participants_by_period,
 )
+from .reactions import (
+    DistributionStats,
+    ReactionStabilityProfile,
+    SenderReactionPeriodRow,
+    SenderReactionProfile,
+    TopReactedMessage,
+    compute_message_distribution,
+    compute_reaction_stability,
+    compute_sender_reaction_by_period,
+    compute_sender_reaction_profiles,
+    filter_senders_by_percentile,
+    filter_senders_top_n,
+    get_top_reacted_messages,
+)
 
 
 def write_counts_csv(rows: list[CountBucket], destination: str | Path) -> Path:
@@ -421,6 +435,229 @@ def write_participant_report_markdown(
             chat_export,
             include_non_human=include_non_human,
             top_n=top_n,
+        ),
+        encoding="utf-8",
+    )
+    return destination_path
+
+
+# ---------------------------------------------------------------------------
+# Reaction report writers
+# ---------------------------------------------------------------------------
+
+
+def write_reaction_profiles_csv(rows: list[SenderReactionProfile], destination: str | Path) -> Path:
+    destination_path = Path(destination)
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    with destination_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "sender_id", "display_name", "total_messages", "total_chars",
+            "total_reactions", "reactions_per_message", "reactions_per_1k_chars",
+            "median_reactions", "messages_with_reactions", "messages_with_reactions_share",
+        ])
+        for row in rows:
+            writer.writerow([
+                row.sender_id, row.display_name, row.total_messages, row.total_chars,
+                row.total_reactions, f"{row.reactions_per_message:.4f}",
+                f"{row.reactions_per_1k_chars:.4f}", f"{row.median_reactions:.1f}",
+                row.messages_with_reactions, f"{row.messages_with_reactions_share:.4f}",
+            ])
+    return destination_path
+
+
+def write_reaction_by_period_csv(rows: list[SenderReactionPeriodRow], destination: str | Path) -> Path:
+    destination_path = Path(destination)
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    with destination_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "period", "label", "start_date", "end_date",
+            "sender_id", "display_name", "messages", "total_reactions",
+            "reactions_per_message", "reactions_per_1k_chars", "messages_with_reactions",
+        ])
+        for row in rows:
+            writer.writerow([
+                row.period, row.label, row.start_date.isoformat(), row.end_date.isoformat(),
+                row.sender_id, row.display_name, row.messages, row.total_reactions,
+                f"{row.reactions_per_message:.4f}", f"{row.reactions_per_1k_chars:.4f}",
+                row.messages_with_reactions,
+            ])
+    return destination_path
+
+
+def write_reaction_stability_csv(rows: list[ReactionStabilityProfile], destination: str | Path) -> Path:
+    destination_path = Path(destination)
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    with destination_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "sender_id", "display_name", "periods_active", "periods_with_reactions",
+            "mean_reactions_per_message", "std_reactions_per_message", "cv_reactions_per_message",
+            "min_reactions_per_message", "max_reactions_per_message",
+            "median_reactions_per_message", "consistency_score",
+        ])
+        for row in rows:
+            writer.writerow([
+                row.sender_id, row.display_name, row.periods_active, row.periods_with_reactions,
+                f"{row.mean_reactions_per_message:.4f}", f"{row.std_reactions_per_message:.4f}",
+                f"{row.cv_reactions_per_message:.4f}", f"{row.min_reactions_per_message:.4f}",
+                f"{row.max_reactions_per_message:.4f}", f"{row.median_reactions_per_message:.4f}",
+                f"{row.consistency_score:.4f}",
+            ])
+    return destination_path
+
+
+def write_top_reacted_messages_csv(rows: list[TopReactedMessage], destination: str | Path) -> Path:
+    destination_path = Path(destination)
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    with destination_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([
+            "message_id", "date", "sender_id", "display_name",
+            "text_preview", "total_reactions", "reaction_breakdown",
+        ])
+        for row in rows:
+            breakdown_str = " ".join(f"{emoji}:{count}" for emoji, count in row.reaction_breakdown)
+            writer.writerow([
+                row.message_id, row.date, row.sender_id, row.display_name,
+                row.text_preview, row.total_reactions, breakdown_str,
+            ])
+    return destination_path
+
+
+def build_reaction_report_markdown(
+    chat_export: ChatExport,
+    *,
+    include_non_human: bool = False,
+    top_n_senders: int = 30,
+    top_n_messages: int = 30,
+    stability_period: str = "month",
+    min_percentile: float = 0.0,
+    min_periods: int = 3,
+) -> str:
+    msgs = list(chat_export.messages)
+
+    # Determine allowed senders
+    allowed = filter_senders_top_n(
+        [m for m in msgs if m.is_user_message],
+        top_n_senders,
+    )
+
+    dist = compute_message_distribution(
+        [m for m in msgs if m.is_user_message],
+    )
+
+    profiles = compute_sender_reaction_profiles(
+        msgs, include_non_human=include_non_human, allowed_senders=allowed,
+    )
+
+    stability = compute_reaction_stability(
+        msgs, stability_period,
+        include_non_human=include_non_human, allowed_senders=allowed,
+        min_periods=min_periods,
+    )
+
+    top_messages = get_top_reacted_messages(
+        msgs, include_non_human=include_non_human, top_n=top_n_messages,
+    )
+
+    lines = [
+        "# Reaction Analytics Report",
+        "",
+        f"- Chat: {chat_export.chat_name}",
+        f"- Senders analyzed: top {top_n_senders} by message count",
+        f"- Stability period: {stability_period} (min {min_periods} periods)",
+        "",
+        "## Message Count Distribution (all senders)",
+        "",
+        f"- Senders: {dist.count}",
+        f"- Mean messages: {dist.mean:.1f}",
+        f"- Std: {dist.std:.1f}",
+        f"- Min: {dist.min:.0f}, P25: {dist.p25:.0f}, Median: {dist.median:.0f}, P75: {dist.p75:.0f}, P90: {dist.p90:.0f}, P95: {dist.p95:.0f}, Max: {dist.max:.0f}",
+        "",
+        "## Top Senders by Reactions per Message",
+        "",
+        "| Rank | Sender | Messages | Reactions | R/Msg | R/1kChars | Median R | % With R |",
+        "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+
+    for rank, p in enumerate(profiles[:20], start=1):
+        lines.append(
+            f"| {rank} | {p.display_name} | {p.total_messages} | {p.total_reactions} | "
+            f"{p.reactions_per_message:.2f} | {p.reactions_per_1k_chars:.2f} | "
+            f"{p.median_reactions:.1f} | {p.messages_with_reactions_share * 100:.1f}% |"
+        )
+
+    if stability:
+        lines.extend([
+            "",
+            f"## Reaction Stability ({stability_period}ly, min {min_periods} periods)",
+            "",
+            "| Rank | Sender | Periods | Mean R/Msg | Std | CV | Min | Max | Consistency |",
+            "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ])
+        for rank, s in enumerate(stability[:20], start=1):
+            lines.append(
+                f"| {rank} | {s.display_name} | {s.periods_active} | "
+                f"{s.mean_reactions_per_message:.2f} | {s.std_reactions_per_message:.2f} | "
+                f"{s.cv_reactions_per_message:.2f} | {s.min_reactions_per_message:.2f} | "
+                f"{s.max_reactions_per_message:.2f} | {s.consistency_score:.3f} |"
+            )
+
+    if top_messages:
+        lines.extend([
+            "",
+            f"## Top {min(len(top_messages), top_n_messages)} Most Reacted Messages",
+            "",
+            "| # | Date | Sender | Reactions | Breakdown | Text |",
+            "| ---: | --- | --- | ---: | --- | --- |",
+        ])
+        for rank, m in enumerate(top_messages[:top_n_messages], start=1):
+            breakdown = " ".join(f"{e}x{c}" for e, c in m.reaction_breakdown[:5])
+            preview = m.text_preview[:80].replace("|", "\\|").replace("\n", " ")
+            lines.append(
+                f"| {rank} | {m.date[:10]} | {m.display_name} | {m.total_reactions} | {breakdown} | {preview} |"
+            )
+
+    lines.extend([
+        "",
+        "## Metric Notes",
+        "",
+        "- `R/Msg`: total reactions divided by total messages for the sender.",
+        "- `R/1kChars`: total reactions per 1,000 characters of text written.",
+        "- `Median R`: median number of reactions per message.",
+        "- `% With R`: share of messages that received at least one reaction.",
+        "- `CV`: coefficient of variation (std / mean); lower means more consistent.",
+        "- `Consistency`: `mean / (1 + CV)`; rewards high reaction rates with low variance.",
+        "- Only senders in the top N by message count are included to filter out low-activity outliers.",
+    ])
+
+    return "\n".join(lines) + "\n"
+
+
+def write_reaction_report_markdown(
+    chat_export: ChatExport,
+    destination: str | Path,
+    *,
+    include_non_human: bool = False,
+    top_n_senders: int = 30,
+    top_n_messages: int = 30,
+    stability_period: str = "month",
+    min_percentile: float = 0.0,
+    min_periods: int = 3,
+) -> Path:
+    destination_path = Path(destination)
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    destination_path.write_text(
+        build_reaction_report_markdown(
+            chat_export,
+            include_non_human=include_non_human,
+            top_n_senders=top_n_senders,
+            top_n_messages=top_n_messages,
+            stability_period=stability_period,
+            min_percentile=min_percentile,
+            min_periods=min_periods,
         ),
         encoding="utf-8",
     )
